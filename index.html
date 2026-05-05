@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin — Device Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --surface2: #f0efeb;
+    --border: rgba(0,0,0,0.10);
+    --border-md: rgba(0,0,0,0.18);
+    --text-primary: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-hint: #888780;
+    --green: #1D9E75;
+    --green-dark: #0F6E56;
+    --green-bg: #E1F5EEaa;
+    --red: #E24B4A;
+    --amber: #BA7517;
+    --blue: #378ADD;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .page-header { text-align: center; margin-bottom: 1.5rem; }
+  .page-title { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.01em; }
+  .page-sub { font-size: 13px; color: var(--text-hint); margin-top: 4px; }
+
+  .tabs { display: flex; gap: 6px; justify-content: center; margin-bottom: 1.5rem; }
+  .tab-btn {
+    padding: 8px 20px; border-radius: 20px;
+    border: 0.5px solid var(--border-md);
+    background: var(--surface); color: var(--text-secondary);
+    font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--text-primary); color: #fff; border-color: var(--text-primary); }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  /* Map */
+  .map-container {
+    max-width: 900px; margin: 0 auto;
+    background: var(--surface);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .map-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .map-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .map-controls { display: flex; gap: 8px; align-items: center; }
+  .map-refresh-btn {
+    font-size: 11px; padding: 4px 12px; border-radius: 6px;
+    border: 0.5px solid var(--border-md); background: var(--surface2);
+    color: var(--text-secondary); cursor: pointer;
+  }
+  .map-refresh-btn:hover { background: var(--border); }
+  .map-legend { display: flex; gap: 12px; align-items: center; font-size: 11px; color: var(--text-secondary); }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .legend-dot.online { background: var(--green); }
+  .legend-dot.offline { background: var(--text-hint); }
+  #map { height: 500px; width: 100%; }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 900px;
+    margin: 1.5rem auto 0;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .summary-label { font-size: 11px; color: var(--text-hint); text-transform: uppercase; letter-spacing: 0.05em; }
+  .summary-value { font-size: 28px; font-weight: 600; color: var(--text-primary); margin-top: 4px; }
+  .summary-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+  /* Device list tab */
+  .device-list {
+    max-width: 900px; margin: 0 auto;
+    background: var(--surface);
+    border: 0.5px solid var(--border-md);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .device-list-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .device-list-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .load-btn {
+    font-size: 11px; padding: 4px 12px; border-radius: 6px;
+    border: 0.5px solid var(--border-md); background: var(--surface2);
+    color: var(--text-secondary); cursor: pointer;
+  }
+  .load-btn:hover { background: var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th {
+    text-align: left; padding: 8px 16px;
+    border-bottom: 0.5px solid var(--border-md);
+    color: var(--text-hint); font-weight: 500; white-space: nowrap;
+  }
+  tbody td { padding: 10px 16px; border-bottom: 0.5px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--surface2); }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500;
+  }
+  .status-pill.online { background: var(--green-bg); color: var(--green-dark); }
+  .status-pill.offline { background: var(--surface2); color: var(--text-hint); }
+  .status-pill-dot { width: 5px; height: 5px; border-radius: 50%; }
+  .status-pill.online .status-pill-dot { background: var(--green); }
+  .status-pill.offline .status-pill-dot { background: var(--text-hint); }
+  .relay-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; }
+  .relay-dot.on { background: var(--green); }
+  .relay-dot.off { background: #d3d1c7; }
+  .no-data { text-align: center; padding: 2rem; color: var(--text-hint); font-size: 12px; }
+  .customer-tag {
+    display: inline-block; padding: 1px 7px; border-radius: 8px;
+    font-size: 10px; font-weight: 500;
+  }
+  .customer-tag.demo { background: #EEF2FF; color: #4F46E5; }
+  .customer-tag.gmp  { background: var(--green-bg); color: var(--green-dark); }
+
+  .page-footer { text-align: center; margin-top: 2rem; font-size: 11px; color: var(--text-hint); }
+
+  @media (max-width: 600px) {
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    #map { height: 350px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="page-title">Admin — Device Map</div>
+  <div class="page-sub">All customers &bull; All devices</div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('map', this)">Map</button>
+  <button class="tab-btn" onclick="switchTab('devices', this)">Device List</button>
+</div>
+
+<!-- MAP TAB -->
+<div class="tab-pane active" id="tab-map">
+  <div class="map-container">
+    <div class="map-toolbar">
+      <div class="map-title">Device Locations</div>
+      <div class="map-controls">
+        <div class="map-legend">
+          <div class="legend-item"><div class="legend-dot online"></div>Online</div>
+          <div class="legend-item"><div class="legend-dot offline"></div>No data</div>
+        </div>
+        <button class="map-refresh-btn" onclick="loadAll()">Refresh</button>
+      </div>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="summary-label">Total Devices</div>
+      <div class="summary-value" id="total-devices">—</div>
+      <div class="summary-sub">Across all customers</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Online</div>
+      <div class="summary-value" id="online-devices" style="color:var(--green)">—</div>
+      <div class="summary-sub">Reported in last 24h</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Customers</div>
+      <div class="summary-value">2</div>
+      <div class="summary-sub">Demo &bull; GreenMountain Power</div>
+    </div>
+  </div>
+</div>
+
+<!-- DEVICE LIST TAB -->
+<div class="tab-pane" id="tab-devices">
+  <div class="device-list">
+    <div class="device-list-header">
+      <div class="device-list-title">All Devices</div>
+      <button class="load-btn" onclick="loadDeviceList()">Refresh</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Device</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Relays</th>
+          <th>Last Seen</th>
+        </tr>
+      </thead>
+      <tbody id="device-list-body">
+        <tr><td colspan="6" class="no-data">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="page-footer">Admin Dashboard &bull; Blues Wireless &bull; Notehub</div>
+
+<script>
+// ── SUPABASE SOURCES ──────────────────────────────────────────────────────────
+const SOURCES = [
+  {
+    name: "Demo",
+    tag: "demo",
+    url: "https://diurqiuzknxzcdxqjfig.supabase.co",
+    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpdXJxaXV6a254emNkeHFqZmlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODQ3OTYsImV4cCI6MjA5MzU2MDc5Nn0.jUs0QYAyaOQmirQgCTjP7ldGqn9hhpzBunGLMVv0x8U",
+    devices: [
+      { uid: "dev:868032061596023", name: "Unit 1" },
+      { uid: "dev:PLACEHOLDER0002", name: "Unit 2" },
+      { uid: "dev:PLACEHOLDER0003", name: "Unit 3" },
+      { uid: "dev:PLACEHOLDER0004", name: "Unit 4" },
+    ]
+  },
+  {
+    name: "GreenMountain Power",
+    tag: "gmp",
+    url: "https://lqisreketpdzhpqjcqke.supabase.co",
+    key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxaXNyZWtldHBkemhwcWpjcWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTM3OTAsImV4cCI6MjA5MzU2OTc5MH0.dHTih6XYSFbtMrljcb3SYtORTzxM8QVcx1i38x0izTo",
+    devices: [
+      { uid: "dev:868032061489682", name: "Unit 9682" },
+    ]
+  }
+];
+
+// ── MAP SETUP ─────────────────────────────────────────────────────────────────
+const map = L.map("map").setView([39.5, -98.35], 4);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>'
+}).addTo(map);
+
+const markers = {};
+
+function makeIcon(online) {
+  const color = online ? "#1D9E75" : "#888780";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    <path d="M14 0C6.27 0 0 6.27 0 14c0 9.33 14 22 14 22s14-12.67 14-22C28 6.27 21.73 0 14 0z" fill="${color}"/>
+    <circle cx="14" cy="14" r="6" fill="white"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg,
+    className: "",
+    iconSize: [28, 36],
+    iconAnchor: [14, 36],
+    popupAnchor: [0, -36]
+  });
+}
+
+// ── DATA LOADING ──────────────────────────────────────────────────────────────
+async function fetchLatest(source, deviceUid) {
+  try {
+    const res = await fetch(
+      `${source.url}/rest/v1/device_readings?device_uid=eq.${encodeURIComponent(deviceUid)}&order=recorded_at.desc&limit=1`,
+      { headers: { "apikey": source.key, "Authorization": `Bearer ${source.key}` } }
+    );
+    const rows = await res.json();
+    return rows?.[0] ?? null;
+  } catch { return null; }
+}
+
+function isOnline(row) {
+  if (!row) return false;
+  const age = Date.now() - new Date(row.recorded_at).getTime();
+  return age < 24 * 60 * 60 * 1000; // within 24 hours
+}
+
+let allDeviceData = [];
+
+async function loadAll() {
+  allDeviceData = [];
+  let totalOnline = 0;
+  let totalDevices = 0;
+
+  // Clear existing markers
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  Object.keys(markers).forEach(k => delete markers[k]);
+
+  for (const source of SOURCES) {
+    for (const device of source.devices) {
+      const row = await fetchLatest(source, device.uid);
+      const online = isOnline(row);
+      if (online) totalOnline++;
+      totalDevices++;
+
+      allDeviceData.push({ source, device, row, online });
+
+      // Add map marker if we have coordinates
+      if (row?.lat && row?.lon) {
+        const marker = L.marker([row.lat, row.lon], { icon: makeIcon(online) });
+        const status = online ? "Online" : "No recent data";
+        const lastSeen = row ? new Date(row.recorded_at).toLocaleString() : "Never";
+        marker.bindPopup(`
+          <div style="font-family:-apple-system,sans-serif;min-width:160px;">
+            <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${device.name}</div>
+            <div style="font-size:11px;color:#5f5e5a;margin-bottom:6px;">${source.name}</div>
+            <div style="font-size:11px;color:#5f5e5a;">${row.location ?? "Unknown location"}</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:5px;">
+              <div style="width:7px;height:7px;border-radius:50%;background:${online ? '#1D9E75' : '#888780'}"></div>
+              <span style="font-size:11px;font-weight:500;color:${online ? '#0F6E56' : '#888780'}">${status}</span>
+            </div>
+            <div style="font-size:10px;color:#888780;margin-top:4px;">Last seen: ${lastSeen}</div>
+          </div>
+        `);
+        marker.addTo(map);
+        markers[device.uid] = marker;
+      }
+    }
+  }
+
+  document.getElementById("total-devices").textContent = totalDevices;
+  document.getElementById("online-devices").textContent = totalOnline;
+
+  // Auto-fit map to markers
+  const markerList = Object.values(markers);
+  if (markerList.length > 0) {
+    const group = L.featureGroup(markerList);
+    map.fitBounds(group.getBounds().pad(0.2));
+  }
+}
+
+function relayDots(row) {
+  if (!row) return "—";
+  return [row.relay_status_r1, row.relay_status_r2, row.relay_status_r3, row.relay_status_r4]
+    .map((v, i) => `<span class="relay-dot ${v > 0 ? 'on' : 'off'}" title="R${i+1}"></span>`)
+    .join("");
+}
+
+async function loadDeviceList() {
+  if (allDeviceData.length === 0) await loadAll();
+  const tbody = document.getElementById("device-list-body");
+  tbody.innerHTML = allDeviceData.map(({ source, device, row, online }) => {
+    const lastSeen = row ? new Date(row.recorded_at).toLocaleString() : "Never";
+    const location = row?.location ?? "—";
+    const statusClass = online ? "online" : "offline";
+    const statusText = online ? "Online" : "No data";
+    return `<tr>
+      <td><span class="customer-tag ${source.tag}">${source.name}</span></td>
+      <td style="font-weight:500;color:var(--text-primary)">${device.name}</td>
+      <td>${location}</td>
+      <td><span class="status-pill ${statusClass}"><div class="status-pill-dot"></div>${statusText}</span></td>
+      <td>${relayDots(row)}</td>
+      <td>${lastSeen}</td>
+    </tr>`;
+  }).join("");
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-" + name).classList.add("active");
+  btn.classList.add("active");
+  if (name === "devices") loadDeviceList();
+  if (name === "map") setTimeout(() => map.invalidateSize(), 100);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
