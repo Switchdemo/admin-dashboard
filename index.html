@@ -229,6 +229,9 @@
 <div class="page-footer">Admin Dashboard &bull; Blues Wireless &bull; Notehub</div>
 
 <script>
+// ── Helper: derive unit name from last 4 digits of device UID ─────────────────
+function unitName(uid) { return "Unit " + uid.slice(-4); }
+
 // ── SUPABASE SOURCES ──────────────────────────────────────────────────────────
 const SOURCES = [
   {
@@ -237,10 +240,10 @@ const SOURCES = [
     url: "https://diurqiuzknxzcdxqjfig.supabase.co",
     key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRpdXJxaXV6a254emNkeHFqZmlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODQ3OTYsImV4cCI6MjA5MzU2MDc5Nn0.jUs0QYAyaOQmirQgCTjP7ldGqn9hhpzBunGLMVv0x8U",
     devices: [
-      { uid: "dev:868032061596023", name: "Unit 1" },
-      { uid: "dev:PLACEHOLDER0002", name: "Unit 2" },
-      { uid: "dev:PLACEHOLDER0003", name: "Unit 3" },
-      { uid: "dev:PLACEHOLDER0004", name: "Unit 4" },
+      { uid: "dev:868032061596023" },
+      { uid: "dev:PLACEHOLDER0002" },
+      { uid: "dev:PLACEHOLDER0003" },
+      { uid: "dev:PLACEHOLDER0004" },
     ]
   },
   {
@@ -249,10 +252,13 @@ const SOURCES = [
     url: "https://lqisreketpdzhpqjcqke.supabase.co",
     key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxaXNyZWtldHBkemhwcWpjcWtlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTM3OTAsImV4cCI6MjA5MzU2OTc5MH0.dHTih6XYSFbtMrljcb3SYtORTzxM8QVcx1i38x0izTo",
     devices: [
-      { uid: "dev:868032061489682", name: "Unit 9682" },
+      { uid: "dev:868032061489682" },
     ]
   }
 ];
+
+// Auto-generate names for all devices
+SOURCES.forEach(s => s.devices.forEach(d => { d.name = unitName(d.uid); }));
 
 // ── MAP SETUP ─────────────────────────────────────────────────────────────────
 const map = L.map("map").setView([39.5, -98.35], 4);
